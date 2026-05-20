@@ -1,0 +1,24 @@
+appId: com.display-app.electron
+productName: Display Gauge App
+directories:
+  buildResources: assets
+files:
+  - dist/**/*
+  - electron/main.js
+  - electron/preload.js
+  - package.json
+win:
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+    - zip
+linux:
+  target:
+    - AppImage
+    - deb

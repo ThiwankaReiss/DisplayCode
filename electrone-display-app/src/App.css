@@ -1,0 +1,168 @@
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: url('/background.jpg') center/cover no-repeat;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* ── Exit button ── */
+.exit-button {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  background: rgba(220, 0, 0, 0.85);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.exit-button:hover { background: rgb(220, 0, 0); }
+
+/* ── Log filename label ── */
+.log-filename-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(0, 255, 255, 0.75);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* ── New log button ── */
+.new-log-button {
+  background: rgba(0, 180, 120, 0.85);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  height: 28px;
+  transition: background 0.2s;
+}
+.new-log-button:hover { background: rgba(0, 210, 140, 1); }
+
+/* ── Stat block card ── */
+.stat-block {
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 3px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+}
+
+/* ── Labels (small uppercase above each value) ── */
+.label-text {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color:#FFFFFF;
+  margin-bottom: 1px;
+}
+
+/* ── Large value text ── */
+.stat-value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.unit {
+  font-size: 2rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* ── Colors ── */
+.golden-text  { color: #FFD700; }
+.sky-blue-text { 
+  color: #00FFFF; 
+  font-size: 2.5rem;
+}
+
+/* ── Animated waveform (current indicator) ── */
+.loading svg polyline {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.loading svg polyline#back  { stroke: #ffe3e4b1; }
+.loading svg polyline#front {
+  stroke: #00ffff;
+  stroke-dasharray: 48, 144;
+  stroke-dashoffset: 192;
+  animation: dash_682 2s linear infinite;
+}
+.loading svg polyline#front2 {
+  stroke: #00ffff;
+  stroke-dasharray: 48, 144;
+  stroke-dashoffset: 192;
+  animation: dash_682 2s linear infinite;
+  animation-delay: 1s;
+}
+@keyframes dash_682 {
+  72.5% { opacity: 0; }
+  to    { stroke-dashoffset: 0; }
+}
+
+/* ── Lightning bolt shake ── */
+@keyframes shakeLR {
+  0%   { transform: translateY(-6px); }
+  20%  { transform: translateY(0); }
+  30%  { transform: translateX(2px); }
+  40%  { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+.shake {
+  display: inline-block;
+  animation: shakeLR 2s infinite;
+  font-size: 1.6rem;
+}
+
+/* ── Speed panel ── */
+.speed-panel {
+  height: 100%;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.speed-value {
+  color: #ffd700;
+  font-size: 12rem;
+  font-weight: 900;
+  line-height: 0.9;
+  margin: 6px 0 4px;
+  text-shadow: 0 0 28px rgba(255, 215, 0, 0.45);
+}
+
+.speed-unit {
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: rgba(255, 215, 0, 0.65);
+  text-transform: uppercase;
+}
