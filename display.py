@@ -17,8 +17,9 @@ from PyQt5.QtGui    import (QFont, QPainter, QColor, QPen, QBrush,
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BACKEND_URL = "http://127.0.0.1:5000/values"
-POLL_MS     = 1000
+BACKEND_URL    = "http://127.0.0.1:5000/values"
+LOG_TOGGLE_URL = "http://127.0.0.1:5000/log-toggle"
+POLL_MS     = 100
 WAVE_MS     = 40
 MAX_SPEED   = 120.0
 
@@ -31,7 +32,7 @@ C_ACCENT = QColor(  0, 212, 255)   # team cyan-blue
 C_GOLD   = QColor(255, 215,   0)
 C_GREEN  = QColor(  0, 255, 120)
 C_RED    = QColor(255,  48,  48)
-C_WHITE  = QColor(255, 255, 255)
+C_WHITE  = QColor(255, 255, 255) 
 
 def _a(c: QColor, alpha: int) -> QColor:
     """Return a copy of QColor with the given alpha."""
@@ -610,6 +611,19 @@ class Dashboard(QWidget):
         self._toggle_btn.mousePressEvent = lambda _: self._toggle_gauge()
         hdr.addWidget(self._toggle_btn)
 
+        # log toggle button  (ON by default — green)
+        self._log_on = True
+        self._log_btn = QLabel("⏺  LOG")
+        self._log_btn.setFixedSize(78, 34)
+        self._log_btn.setAlignment(Qt.AlignCenter)
+        self._log_btn.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        self._log_btn.setStyleSheet(
+            "QLabel { background:rgba(0,180,60,180); color:white; "
+            "border-radius:6px; letter-spacing:1px; }"
+        )
+        self._log_btn.mousePressEvent = lambda _: self._toggle_log()
+        hdr.addWidget(self._log_btn)
+
         # exit button
         x_btn = QLabel("✕")
         x_btn.setFixedSize(34, 34)
@@ -684,6 +698,36 @@ class Dashboard(QWidget):
                 "QLabel { background:rgba(80,80,80,180); color:rgba(255,255,255,160); "
                 "border-radius:6px; letter-spacing:1px; }"
             )
+
+    def _toggle_log(self):
+        """Toggle CAN logging on/off and notify the backend."""
+        self._log_on = not self._log_on
+        if self._log_on:
+            self._log_btn.setText("⏺  LOG")
+            self._log_btn.setStyleSheet(
+                "QLabel { background:rgba(0,180,60,180); color:white; "
+                "border-radius:6px; letter-spacing:1px; }"
+            )
+        else:
+            self._log_btn.setText("⏹  LOG")
+            self._log_btn.setStyleSheet(
+                "QLabel { background:rgba(160,40,40,180); color:rgba(255,255,255,160); "
+                "border-radius:6px; letter-spacing:1px; }"
+            )
+
+        def _post():
+            try:
+                _urllib.urlopen(
+                    _urllib.Request(
+                        LOG_TOGGLE_URL,
+                        data=b"",
+                        method="POST",
+                    ),
+                    timeout=3,
+                ).read()
+            except Exception:
+                pass
+        threading.Thread(target=_post, daemon=True).start()
 
     def _make_right_panel(self) -> QWidget:
         panel = GlassPanel()
@@ -765,330 +809,332 @@ if __name__ == "__main__":
     dash = Dashboard()
     sys.exit(app.exec_())
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._value = 0
-        self.setMinimumSize(140, 52)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+##─────────────────────────────────────────────────────────────────────────────
+# commented according to chat gpt
+    # def __init__(self, parent=None):
+    #     super().__init__(parent)
+    #     self._value = 0
+    #     self.setMinimumSize(140, 52)
+    #     self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-    def setValue(self, v):
-        self._value = max(0.0, min(100.0, float(v)))
-        self.update()
+    # def setValue(self, v):
+    #     self._value = max(0.0, min(100.0, float(v)))
+    #     self.update()
 
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w, h    = self.width(), self.height()
-        cap_w   = max(8, int(w * 0.04))
-        body_w  = w - cap_w - 4
-        body_h  = h - 10
-        bx, by  = 2, 5
+    # def paintEvent(self, _):
+    #     p = QPainter(self)
+    #     p.setRenderHint(QPainter.Antialiasing)
+    #     w, h    = self.width(), self.height()
+    #     cap_w   = max(8, int(w * 0.04))
+    #     body_w  = w - cap_w - 4
+    #     body_h  = h - 10
+    #     bx, by  = 2, 5
 
-        # Body outline
-        p.setPen(QPen(WHITE, 2))
-        p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(bx, by, body_w, body_h, 5, 5)
+    #     # Body outline
+    #     p.setPen(QPen(WHITE, 2))
+    #     p.setBrush(Qt.NoBrush)
+    #     p.drawRoundedRect(bx, by, body_w, body_h, 5, 5)
 
-        # Cap
-        cap_x = bx + body_w
-        cap_y = by + body_h // 3
-        cap_h = body_h // 3
-        p.drawRoundedRect(cap_x, cap_y, cap_w, cap_h, 2, 2)
+    #     # Cap
+    #     cap_x = bx + body_w
+    #     cap_y = by + body_h // 3
+    #     cap_h = body_h // 3
+    #     p.drawRoundedRect(cap_x, cap_y, cap_w, cap_h, 2, 2)
 
-        # Fill
-        inner_pad = 3
-        fill_max  = body_w - inner_pad * 2
-        fill_w    = max(0, int(fill_max * self._value / 100))
-        fill_col  = RED if self._value < 15 else GREEN
+    #     # Fill
+    #     inner_pad = 3
+    #     fill_max  = body_w - inner_pad * 2
+    #     fill_w    = max(0, int(fill_max * self._value / 100))
+    #     fill_col  = RED if self._value < 15 else GREEN
 
-        p.setPen(Qt.NoPen)
-        p.setBrush(QBrush(fill_col))
-        if fill_w > 0:
-            p.drawRoundedRect(
-                bx + inner_pad, by + inner_pad,
-                fill_w, body_h - inner_pad * 2,
-                3, 3,
-            )
+    #     p.setPen(Qt.NoPen)
+    #     p.setBrush(QBrush(fill_col))
+    #     if fill_w > 0:
+    #         p.drawRoundedRect(
+    #             bx + inner_pad, by + inner_pad,
+    #             fill_w, body_h - inner_pad * 2,
+    #             3, 3,
+    #         )
 
-        # Percentage label
-        p.setPen(QPen(WHITE))
-        font = QFont("Segoe UI", 15, QFont.Bold)
-        p.setFont(font)
-        p.drawText(QRectF(bx, by, body_w, body_h), Qt.AlignCenter, f"{self._value:.0f}%")
-        p.end()
+    #     # Percentage label
+    #     p.setPen(QPen(WHITE))
+    #     font = QFont("Segoe UI", 15, QFont.Bold)
+    #     p.setFont(font)
+    #     p.drawText(QRectF(bx, by, body_w, body_h), Qt.AlignCenter, f"{self._value:.0f}%")
+    #     p.end()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stat card helpers
 # ─────────────────────────────────────────────────────────────────────────────
-_CARD_STYLE = """
-    QFrame {{
-        background: rgba(0,0,0,80);
-        border-left: 3px solid rgba(255,255,255,55);
-        border-radius: 5px;
-    }}
-"""
+# _CARD_STYLE = """
+#     QFrame {{
+#         background: rgba(0,0,0,80);
+#         border-left: 3px solid rgba(255,255,255,55);
+#         border-radius: 5px;
+#     }}
+# """
 
-def _label(text, font_size=9, bold=True, color="#ffffff", spacing="1px"):
-    lbl = QLabel(text)
-    lbl.setFont(QFont("Segoe UI", font_size, QFont.Bold if bold else QFont.Normal))
-    lbl.setStyleSheet(
-        f"color:{color}; letter-spacing:{spacing}; background:transparent; border:none;"
-    )
-    return lbl
-
-
-class StatCard(QFrame):
-    """Plain label + value card."""
-    def __init__(self, label, unit="", color=CYAN, font_size=22, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet(_CARD_STYLE)
-        lo = QVBoxLayout(self)
-        lo.setContentsMargins(10, 5, 10, 5)
-        lo.setSpacing(1)
-        lo.addWidget(_label(label.upper()))
-        row = QHBoxLayout()
-        row.setSpacing(4)
-        self.val_lbl  = QLabel("0")
-        self.val_lbl.setFont(QFont("Segoe UI", font_size, QFont.ExtraBold))
-        self.val_lbl.setStyleSheet(
-            f"color:{color.name()}; background:transparent; border:none;"
-        )
-        row.addWidget(self.val_lbl)
-        if unit:
-            u = _label(unit, font_size=int(font_size * 0.7), bold=False,
-                       color="rgba(255,255,255,170)")
-            row.addWidget(u, alignment=Qt.AlignBottom)
-        row.addStretch()
-        lo.addLayout(row)
-
-    def setValue(self, v, decimals=0):
-        self.val_lbl.setText(f"{v:.{decimals}f}")
+# def _label(text, font_size=9, bold=True, color="#ffffff", spacing="1px"):
+#     lbl = QLabel(text)
+#     lbl.setFont(QFont("Segoe UI", font_size, QFont.Bold if bold else QFont.Normal))
+#     lbl.setStyleSheet(
+#         f"color:{color}; letter-spacing:{spacing}; background:transparent; border:none;"
+#     )
+#     return lbl
 
 
-class WaveCard(QFrame):
-    """Stat card with an animated ECG waveform icon."""
-    def __init__(self, label, unit="", color=CYAN, font_size=22, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet(_CARD_STYLE)
-        lo = QVBoxLayout(self)
-        lo.setContentsMargins(10, 5, 10, 5)
-        lo.setSpacing(1)
-        lo.addWidget(_label(label.upper()))
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        self.wave = WaveformWidget()
-        row.addWidget(self.wave, alignment=Qt.AlignVCenter)
-        self.val_lbl = QLabel("0")
-        self.val_lbl.setFont(QFont("Segoe UI", font_size, QFont.ExtraBold))
-        self.val_lbl.setStyleSheet(
-            f"color:{color.name()}; background:transparent; border:none;"
-        )
-        row.addWidget(self.val_lbl)
-        if unit:
-            u = _label(unit, font_size=int(font_size * 0.7), bold=False,
-                       color="rgba(255,255,255,170)")
-            row.addWidget(u, alignment=Qt.AlignBottom)
-        row.addStretch()
-        lo.addLayout(row)
+# class StatCard(QFrame):
+#     """Plain label + value card."""
+#     def __init__(self, label, unit="", color=CYAN, font_size=22, parent=None):
+#         super().__init__(parent)
+#         self.setStyleSheet(_CARD_STYLE)
+#         lo = QVBoxLayout(self)
+#         lo.setContentsMargins(10, 5, 10, 5)
+#         lo.setSpacing(1)
+#         lo.addWidget(_label(label.upper()))
+#         row = QHBoxLayout()
+#         row.setSpacing(4)
+#         self.val_lbl  = QLabel("0")
+#         self.val_lbl.setFont(QFont("Segoe UI", font_size, QFont.ExtraBold))
+#         self.val_lbl.setStyleSheet(
+#             f"color:{color.name()}; background:transparent; border:none;"
+#         )
+#         row.addWidget(self.val_lbl)
+#         if unit:
+#             u = _label(unit, font_size=int(font_size * 0.7), bold=False,
+#                        color="rgba(255,255,255,170)")
+#             row.addWidget(u, alignment=Qt.AlignBottom)
+#         row.addStretch()
+#         lo.addLayout(row)
 
-    def setValue(self, v, decimals=0):
-        self.val_lbl.setText(f"{v:.{decimals}f}")
+#     def setValue(self, v, decimals=0):
+#         self.val_lbl.setText(f"{v:.{decimals}f}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Data fetcher (background thread → Qt signal)
-# ─────────────────────────────────────────────────────────────────────────────
-class DataFetcher(QObject):
-    dataReady = pyqtSignal(dict)
+# class WaveCard(QFrame):
+#     """Stat card with an animated ECG waveform icon."""
+#     def __init__(self, label, unit="", color=CYAN, font_size=22, parent=None):
+#         super().__init__(parent)
+#         self.setStyleSheet(_CARD_STYLE)
+#         lo = QVBoxLayout(self)
+#         lo.setContentsMargins(10, 5, 10, 5)
+#         lo.setSpacing(1)
+#         lo.addWidget(_label(label.upper()))
+#         row = QHBoxLayout()
+#         row.setSpacing(8)
+#         self.wave = WaveformWidget()
+#         row.addWidget(self.wave, alignment=Qt.AlignVCenter)
+#         self.val_lbl = QLabel("0")
+#         self.val_lbl.setFont(QFont("Segoe UI", font_size, QFont.ExtraBold))
+#         self.val_lbl.setStyleSheet(
+#             f"color:{color.name()}; background:transparent; border:none;"
+#         )
+#         row.addWidget(self.val_lbl)
+#         if unit:
+#             u = _label(unit, font_size=int(font_size * 0.7), bold=False,
+#                        color="rgba(255,255,255,170)")
+#             row.addWidget(u, alignment=Qt.AlignBottom)
+#         row.addStretch()
+#         lo.addLayout(row)
 
-    def __init__(self, url, interval_ms):
-        super().__init__()
-        self._url      = url
-        self._ms       = interval_ms
-        self._pending  = False
-        self._manager  = QNetworkAccessManager(self)
-        self._manager.finished.connect(self._on_reply)
-        self._timer    = QTimer(self)
-        self._timer.timeout.connect(self._fetch)
-
-    def start(self):
-        self._fetch()                    # immediate first load
-        self._timer.start(self._ms)
-
-    def _fetch(self):
-        if self._pending:
-            return
-        self._pending = True
-        req = QNetworkRequest(QUrl(self._url))
-        self._manager.get(req)
-
-    def _on_reply(self, reply):
-        self._pending = False
-        try:
-            raw  = bytes(reply.readAll()).decode("utf-8")
-            data = json.loads(raw)
-            if isinstance(data, dict):
-                self.dataReady.emit(data)
-        except Exception:
-            pass
-        finally:
-            reply.deleteLater()
+#     def setValue(self, v, decimals=0):
+#         self.val_lbl.setText(f"{v:.{decimals}f}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Main dashboard window
-# ─────────────────────────────────────────────────────────────────────────────
-class Dashboard(QWidget):
-    def __init__(self):
-        super().__init__()
-        self._build_ui()
-        self._fetcher = DataFetcher(BACKEND_URL, POLL_MS)
-        self._fetcher.dataReady.connect(self._update)
-        self._fetcher.start()
+# # ─────────────────────────────────────────────────────────────────────────────
+# # Data fetcher (background thread → Qt signal)
+# # ─────────────────────────────────────────────────────────────────────────────
+# class DataFetcher(QObject):
+#     dataReady = pyqtSignal(dict)
 
-    # ── UI construction ───────────────────────────────────────────────────────
-    def _build_ui(self):
-        self.setWindowTitle("EV Dashboard")
-        self.setStyleSheet(f"QWidget {{ background-color: {BG_COLOR}; color: #ffffff; }}")
-        self.showFullScreen()
+#     def __init__(self, url, interval_ms):
+#         super().__init__()
+#         self._url      = url
+#         self._ms       = interval_ms
+#         self._pending  = False
+#         self._manager  = QNetworkAccessManager(self)
+#         self._manager.finished.connect(self._on_reply)
+#         self._timer    = QTimer(self)
+#         self._timer.timeout.connect(self._fetch)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+#     def start(self):
+#         self._fetch()                    # immediate first load
+#         self._timer.start(self._ms)
 
-        # ── Header bar ──────────────────────────────────────────────────────
-        header = QHBoxLayout()
-        header.setContentsMargins(14, 8, 8, 0)
+#     def _fetch(self):
+#         if self._pending:
+#             return
+#         self._pending = True
+#         req = QNetworkRequest(QUrl(self._url))
+#         self._manager.get(req)
 
-        logo = QLabel("◈ EV DASHBOARD")
-        logo.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        logo.setStyleSheet("color: rgba(255,255,255,160); background:transparent;")
-        header.addWidget(logo)
-
-        header.addStretch()
-
-        exit_btn = QPushButton("✕")
-        exit_btn.setFixedSize(38, 38)
-        exit_btn.setStyleSheet("""
-            QPushButton {
-                background: rgba(220,0,0,200); color: white;
-                border: none; border-radius: 6px;
-                font-size: 16px; font-weight: bold;
-            }
-            QPushButton:hover { background: rgb(220,0,0); }
-        """)
-        exit_btn.clicked.connect(QApplication.quit)
-        header.addWidget(exit_btn)
-
-        root.addLayout(header)
-
-        # ── Body (3 columns) ────────────────────────────────────────────────
-        body = QHBoxLayout()
-        body.setContentsMargins(12, 6, 12, 12)
-        body.setSpacing(10)
-
-        body.addLayout(self._left_col(),   stretch=3)
-        body.addLayout(self._center_col(), stretch=5)
-        body.addLayout(self._right_col(),  stretch=3)
-
-        root.addLayout(body, stretch=1)
-
-    # ── Left column ───────────────────────────────────────────────────────────
-    def _left_col(self):
-        lo = QVBoxLayout()
-        lo.setSpacing(8)
-        self.w_high_temp  = StatCard("High Temp",     "°C", CYAN)
-        self.w_low_temp   = StatCard("Low Temp",      "°C", CYAN)
-        self.w_motor_cur  = WaveCard("Motor Current", "A",  CYAN)
-        lo.addWidget(self.w_high_temp)
-        lo.addWidget(self.w_low_temp)
-        lo.addWidget(self.w_motor_cur)
-        lo.addStretch()
-        return lo
-
-    # ── Center column ─────────────────────────────────────────────────────────
-    def _center_col(self):
-        lo = QVBoxLayout()
-        lo.setAlignment(Qt.AlignCenter)
-        lo.setSpacing(0)
-
-        lo.addStretch(1)
-
-        lbl = QLabel("SPEED")
-        lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        lbl.setStyleSheet(
-            "color:#ffffff; letter-spacing:3px; background:transparent;"
-        )
-        lbl.setAlignment(Qt.AlignCenter)
-        lo.addWidget(lbl)
-
-        self.w_speed = QLabel("0")
-        self.w_speed.setFont(QFont("Segoe UI", 130, QFont.Black))
-        self.w_speed.setStyleSheet(
-            "color:#FFD700; background:transparent; "
-            "qproperty-alignment: AlignCenter;"
-        )
-        self.w_speed.setAlignment(Qt.AlignCenter)
-        self.w_speed.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        lo.addWidget(self.w_speed, stretch=3)
-
-        unit_lbl = QLabel("km/h")
-        unit_lbl.setFont(QFont("Segoe UI", 18, QFont.DemiBold))
-        unit_lbl.setStyleSheet(
-            "color:rgba(255,215,0,150); letter-spacing:4px; background:transparent;"
-        )
-        unit_lbl.setAlignment(Qt.AlignCenter)
-        lo.addWidget(unit_lbl)
-
-        lo.addStretch(1)
-        return lo
-
-    # ── Right column ──────────────────────────────────────────────────────────
-    def _right_col(self):
-        lo = QVBoxLayout()
-        lo.setSpacing(8)
-
-        # State of charge card (battery widget)
-        soc_frame = QFrame()
-        soc_frame.setStyleSheet(_CARD_STYLE)
-        soc_lo = QVBoxLayout(soc_frame)
-        soc_lo.setContentsMargins(10, 5, 10, 8)
-        soc_lo.setSpacing(4)
-        soc_lo.addWidget(_label("STATE OF CHARGE"))
-        self.w_battery = BatteryWidget()
-        soc_lo.addWidget(self.w_battery)
-
-        self.w_pack_volt = StatCard("Pack Voltage", "V",  GOLD)
-        self.w_pack_cur  = WaveCard("Pack Current", "A",  CYAN)
-
-        lo.addWidget(soc_frame)
-        lo.addWidget(self.w_pack_volt)
-        lo.addWidget(self.w_pack_cur)
-        lo.addStretch()
-        return lo
-
-    # ── Data update (called from background thread via signal) ─────────────────
-    def _update(self, d: dict):
-        self.w_high_temp.setValue(d.get("high_temp",      0))
-        self.w_low_temp.setValue( d.get("low_temp",       0))
-        self.w_motor_cur.setValue(d.get("motor_current",  0))
-        self.w_speed.setText(str(int(d.get("speed",       0))))
-        self.w_battery.setValue(  d.get("state_of_charge",0))
-        self.w_pack_volt.setValue(d.get("pack_voltage",   0), decimals=1)
-        self.w_pack_cur.setValue( d.get("pack_current",   0))
-
-    # ── Allow ESC to quit ──────────────────────────────────────────────────────
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            QApplication.quit()
-        else:
-            super().keyPressEvent(event)
+#     def _on_reply(self, reply):
+#         self._pending = False
+#         try:
+#             raw  = bytes(reply.readAll()).decode("utf-8")
+#             data = json.loads(raw)
+#             if isinstance(data, dict):
+#                 self.dataReady.emit(data)
+#         except Exception:
+#             pass
+#         finally:
+#             reply.deleteLater()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setApplicationName("EV Dashboard")
-    dash = Dashboard()
-    sys.exit(app.exec_())
+# # ─────────────────────────────────────────────────────────────────────────────
+# # Main dashboard window
+# # ─────────────────────────────────────────────────────────────────────────────
+# class Dashboard(QWidget):
+#     def __init__(self):
+#         super().__init__()
+#         self._build_ui()
+#         self._fetcher = DataFetcher(BACKEND_URL, POLL_MS)
+#         self._fetcher.dataReady.connect(self._update)
+#         self._fetcher.start()
+
+#     # ── UI construction ───────────────────────────────────────────────────────
+#     def _build_ui(self):
+#         self.setWindowTitle("EV Dashboard")
+#         self.setStyleSheet(f"QWidget {{ background-color: {BG_COLOR}; color: #ffffff; }}")
+#         self.showFullScreen()
+
+#         root = QVBoxLayout(self)
+#         root.setContentsMargins(0, 0, 0, 0)
+#         root.setSpacing(0)
+
+#         # ── Header bar ──────────────────────────────────────────────────────
+#         header = QHBoxLayout()
+#         header.setContentsMargins(14, 8, 8, 0)
+
+#         logo = QLabel("◈ EV DASHBOARD")
+#         logo.setFont(QFont("Segoe UI", 13, QFont.Bold))
+#         logo.setStyleSheet("color: rgba(255,255,255,160); background:transparent;")
+#         header.addWidget(logo)
+
+#         header.addStretch()
+
+#         exit_btn = QPushButton("✕")
+#         exit_btn.setFixedSize(38, 38)
+#         exit_btn.setStyleSheet("""
+#             QPushButton {
+#                 background: rgba(220,0,0,200); color: white;
+#                 border: none; border-radius: 6px;
+#                 font-size: 16px; font-weight: bold;
+#             }
+#             QPushButton:hover { background: rgb(220,0,0); }
+#         """)
+#         exit_btn.clicked.connect(QApplication.quit)
+#         header.addWidget(exit_btn)
+
+#         root.addLayout(header)
+
+#         # ── Body (3 columns) ────────────────────────────────────────────────
+#         body = QHBoxLayout()
+#         body.setContentsMargins(12, 6, 12, 12)
+#         body.setSpacing(10)
+
+#         body.addLayout(self._left_col(),   stretch=3)
+#         body.addLayout(self._center_col(), stretch=5)
+#         body.addLayout(self._right_col(),  stretch=3)
+
+#         root.addLayout(body, stretch=1)
+
+#     # ── Left column ───────────────────────────────────────────────────────────
+#     def _left_col(self):
+#         lo = QVBoxLayout()
+#         lo.setSpacing(8)
+#         self.w_high_temp  = StatCard("High Temp",     "°C", CYAN)
+#         self.w_low_temp   = StatCard("Low Temp",      "°C", CYAN)
+#         self.w_motor_cur  = WaveCard("Motor Current", "A",  CYAN)
+#         lo.addWidget(self.w_high_temp)
+#         lo.addWidget(self.w_low_temp)
+#         lo.addWidget(self.w_motor_cur)
+#         lo.addStretch()
+#         return lo
+
+#     # ── Center column ─────────────────────────────────────────────────────────
+#     def _center_col(self):
+#         lo = QVBoxLayout()
+#         lo.setAlignment(Qt.AlignCenter)
+#         lo.setSpacing(0)
+
+#         lo.addStretch(1)
+
+#         lbl = QLabel("SPEED")
+#         lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+#         lbl.setStyleSheet(
+#             "color:#ffffff; letter-spacing:3px; background:transparent;"
+#         )
+#         lbl.setAlignment(Qt.AlignCenter)
+#         lo.addWidget(lbl)
+
+#         self.w_speed = QLabel("0")
+#         self.w_speed.setFont(QFont("Segoe UI", 130, QFont.Black))
+#         self.w_speed.setStyleSheet(
+#             "color:#FFD700; background:transparent; "
+#             "qproperty-alignment: AlignCenter;"
+#         )
+#         self.w_speed.setAlignment(Qt.AlignCenter)
+#         self.w_speed.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+#         lo.addWidget(self.w_speed, stretch=3)
+
+#         unit_lbl = QLabel("km/h")
+#         unit_lbl.setFont(QFont("Segoe UI", 18, QFont.DemiBold))
+#         unit_lbl.setStyleSheet(
+#             "color:rgba(255,215,0,150); letter-spacing:4px; background:transparent;"
+#         )
+#         unit_lbl.setAlignment(Qt.AlignCenter)
+#         lo.addWidget(unit_lbl)
+
+#         lo.addStretch(1)
+#         return lo
+
+#     # ── Right column ──────────────────────────────────────────────────────────
+#     def _right_col(self):
+#         lo = QVBoxLayout()
+#         lo.setSpacing(8)
+
+#         # State of charge card (battery widget)
+#         soc_frame = QFrame()
+#         soc_frame.setStyleSheet(_CARD_STYLE)
+#         soc_lo = QVBoxLayout(soc_frame)
+#         soc_lo.setContentsMargins(10, 5, 10, 8)
+#         soc_lo.setSpacing(4)
+#         soc_lo.addWidget(_label("STATE OF CHARGE"))
+#         self.w_battery = BatteryWidget()
+#         soc_lo.addWidget(self.w_battery)
+
+#         self.w_pack_volt = StatCard("Pack Voltage", "V",  GOLD)
+#         self.w_pack_cur  = WaveCard("Pack Current", "A",  CYAN)
+
+#         lo.addWidget(soc_frame)
+#         lo.addWidget(self.w_pack_volt)
+#         lo.addWidget(self.w_pack_cur)
+#         lo.addStretch()
+#         return lo
+
+#     # ── Data update (called from background thread via signal) ─────────────────
+#     def _update(self, d: dict):
+#         self.w_high_temp.setValue(d.get("high_temp",      0))
+#         self.w_low_temp.setValue( d.get("low_temp",       0))
+#         self.w_motor_cur.setValue(d.get("motor_current",  0))
+#         self.w_speed.setText(str(int(d.get("speed",       0))))
+#         self.w_battery.setValue(  d.get("state_of_charge",0))
+#         self.w_pack_volt.setValue(d.get("pack_voltage",   0), decimals=1)
+#         self.w_pack_cur.setValue( d.get("pack_current",   0))
+
+#     # ── Allow ESC to quit ──────────────────────────────────────────────────────
+#     def keyPressEvent(self, event):
+#         if event.key() == Qt.Key_Escape:
+#             QApplication.quit()
+#         else:
+#             super().keyPressEvent(event)
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# if __name__ == "__main__":
+#     app = QApplication(sys.argv)
+#     app.setApplicationName("EV Dashboard")
+#     dash = Dashboard()
+#     sys.exit(app.exec_())

@@ -34,6 +34,7 @@ print(f"[LOG] Logging CAN data to: {CSV_LOG_FILE}")
 # ── Shared state (protected by _lock) ─────────────────────────────────────────
 _lock = threading.Lock()
 _csv_header_written = False
+_logging_enabled    = True        # toggled via /log-toggle
 cell_voltages = {}
 request_count = 0
 
@@ -64,6 +65,8 @@ latest_values = default_values()
 # ── CSV logging ────────────────────────────────────────────────────────────────
 def log_can_frame(message):
     global _csv_header_written
+    if not _logging_enabled:
+        return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     data = message.data
     dlc = len(data)
@@ -212,6 +215,15 @@ def new_log():
     CSV_LOG_FILE = _next_log_filename()
     print(f"[LOG] Switched to new log file: {CSV_LOG_FILE}")
     return jsonify({"filename": CSV_LOG_FILE})
+
+
+@app.route('/log-toggle', methods=['POST'])
+def log_toggle():
+    global _logging_enabled
+    _logging_enabled = not _logging_enabled
+    state = "on" if _logging_enabled else "off"
+    print(f"[LOG] Logging toggled {state}")
+    return jsonify({"logging": _logging_enabled})
 
 
 if __name__ == '__main__':
