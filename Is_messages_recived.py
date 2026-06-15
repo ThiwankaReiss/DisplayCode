@@ -7,7 +7,7 @@ bus = None
 try:
     # Initialize CAN bus
     bus = can.interface.Bus(
-        channel='/dev/ttyUSB0',
+        channel='COM7',
         interface='slcan',
         bitrate=250000
     )
