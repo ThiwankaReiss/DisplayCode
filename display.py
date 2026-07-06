@@ -4,7 +4,7 @@ Backend : http://127.0.0.1:5000/values
 Run     : python3 display.py
 """
 
-import sys, json, math, os, threading
+import sys, json, math, os, threading, collections
 import urllib.request as _urllib
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel,
@@ -39,6 +39,12 @@ def _a(c: QColor, alpha: int) -> QColor:
     r = QColor(c); r.setAlpha(alpha); return r
 
 
+def _temp_calibrated(raw_value):
+    """Convert a raw temperature value using the dashboard calibration curve."""
+    x = float(raw_value)
+    return (-1e-05 * (x ** 3)) + (0.0012 * (x ** 2)) + (0.1363 * x) + 32.492
+
+
 # ── Typography  ───────────────────────────────────────────────────────────────
 # Stat-card LABEL  (e.g. "HIGH TEMP", "PACK VOLTAGE")
 LABEL_SIZE  = 15                      # pt
@@ -70,6 +76,55 @@ BATT_MID_PCT   = 50
 BATT_LOW_COLOR  = QColor(220,  40,  40)   # red
 BATT_MID_COLOR  = QColor(255, 210,   0)   # yellow
 BATT_HIGH_COLOR = QColor( 30, 210,  80)   # green
+
+# ── Voltage Alert ─────────────────────────────────────────────────────────────
+# Thresholds (V) — edit freely
+VOLT_WARN_LOW          = 3.2    # V — yellow warning: low cell below this
+VOLT_CRIT_LOW          = 3.1    # V — red critical:   low cell below this
+VOLT_CRIT_HIGH         = 4.17   # V — red critical:   high cell above this
+# Blink intervals (ms) — edit freely
+BLINK_SLOW_MS          = 2000   # ms — yellow warning blink period
+BLINK_FAST_MS          = 100    # ms — red critical blink period
+# Startup grace period — no alerts fired during the first N ms
+ALERT_STARTUP_DELAY_MS = 10_000 # ms — 10 s by default
+# Flash overlay appearance — edit freely
+#   Alpha : 0 = fully transparent  /  255 = fully opaque
+#   R,G,B : 0-255 brightness of each channel
+ALERT_RED_ALPHA  = 255           # opacity of the red flash
+ALERT_RED_R      = 255           # red channel brightness
+ALERT_RED_G      = 0             # green channel brightness
+ALERT_RED_B      = 0             # blue channel brightness
+ALERT_YEL_ALPHA  = 200           # opacity of the yellow flash
+ALERT_YEL_R      = 255           # red channel brightness
+ALERT_YEL_G      = 180           # green channel brightness (controls yellow hue)
+ALERT_YEL_B      = 0             # blue channel brightness
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Full-screen alert overlay  — sits on top of ALL child widgets
+# ─────────────────────────────────────────────────────────────────────────────
+class AlertOverlay(QWidget):
+    """Transparent top-most child widget used for voltage alert flashing."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._color = QColor(0, 0, 0, 0)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setAutoFillBackground(False)
+        self.hide()
+
+    def flash(self, color: QColor):
+        self._color = color
+        self.show()
+        self.update()
+
+    def clear(self):
+        self.hide()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.fillRect(self.rect(), self._color)
+        p.end()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -480,11 +535,28 @@ class Dashboard(QWidget):
         self._connected = False
         self._pulse     = 0.0
 
+        # ── pack-current history for 60-s max/min ─────────────────────────────
+        _history_len = max(1, 60_000 // POLL_MS)
+        self._cur_history: collections.deque = collections.deque(maxlen=_history_len)
+
+        # ── voltage alert state ───────────────────────────────────────────────
+        self._alert_level   = None   # None | 'yellow' | 'red'
+        self._blink_visible = False
+        self._alert_active  = False  # becomes True after startup grace period
+        self._blink_timer   = QTimer(self)
+        self._blink_timer.timeout.connect(self._blink_tick)
+        QTimer.singleShot(ALERT_STARTUP_DELAY_MS, self._enable_alerts)
+
         pulse_t = QTimer(self)
         pulse_t.timeout.connect(self._pulse_tick)
         pulse_t.start(40)
 
         self._build_ui()
+
+        # overlay created AFTER _build_ui so it is stacked above all panels
+        self._alert_overlay = AlertOverlay(self)
+        self._alert_overlay.setGeometry(self.rect())
+        self._alert_overlay.raise_()
 
         self._fetcher = DataFetcher(BACKEND_URL, POLL_MS)
         self._fetcher.dataReady.connect(self._on_data)
@@ -494,6 +566,35 @@ class Dashboard(QWidget):
     def _pulse_tick(self):
         self._pulse = (self._pulse + 0.06) % (2 * math.pi)
         self.update(0, 0, self.width(), 58)   # repaint header region only
+
+    # ── voltage alert helpers ─────────────────────────────────────────────────
+    def _enable_alerts(self):
+        """Called once after ALERT_STARTUP_DELAY_MS to arm the alert system."""
+        self._alert_active = True
+
+    def _blink_tick(self):
+        self._blink_visible = not self._blink_visible
+        if self._blink_visible and self._alert_level:
+            if self._alert_level == 'red':
+                col = QColor(ALERT_RED_R, ALERT_RED_G, ALERT_RED_B, ALERT_RED_ALPHA)
+            else:
+                col = QColor(ALERT_YEL_R, ALERT_YEL_G, ALERT_YEL_B, ALERT_YEL_ALPHA)
+            self._alert_overlay.flash(col)
+        else:
+            self._alert_overlay.clear()
+
+    def _set_alert(self, level):
+        """Switch alert level and adjust blink timer accordingly."""
+        if level == self._alert_level:
+            return
+        self._alert_level = level
+        self._blink_timer.stop()
+        self._alert_overlay.clear()
+        self._blink_visible = False
+        if level == 'red':
+            self._blink_timer.start(BLINK_FAST_MS)
+        elif level == 'yellow':
+            self._blink_timer.start(BLINK_SLOW_MS)
 
     # ── background + chrome painting ──────────────────────────────────────────
     def paintEvent(self, event):
@@ -541,6 +642,12 @@ class Dashboard(QWidget):
             p.drawEllipse(QPointF(dot_x, dot_y), dot_r, dot_r)
 
         p.end()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_alert_overlay'):
+            self._alert_overlay.setGeometry(self.rect())
+            self._alert_overlay.raise_()
 
     # ── UI construction ───────────────────────────────────────────────────────
     def _build_ui(self):
@@ -686,7 +793,45 @@ class Dashboard(QWidget):
         self._speed_stack.addWidget(self.w_speed_plain)  # 1
         self._speed_stack.setCurrentIndex(0)
 
-        lo.addWidget(self._speed_stack)
+        lo.addWidget(self._speed_stack, stretch=1)
+
+        # ── Peak current (60 s) ───────────────────────────────────────────────
+        sep_mc = QWidget()
+        sep_mc.setFixedHeight(1)
+        sep_mc.setAutoFillBackground(True)
+        sep_mc.setStyleSheet("background:rgba(255,215,0,40);")
+        lo.addWidget(sep_mc)
+
+        peak_lbl = _lbl("PEAK CURRENT (+/-) 60s", size=LABEL_SIZE, color=LABEL_COLOR)
+        peak_lbl.setAlignment(Qt.AlignCenter)
+        lo.addWidget(peak_lbl)
+
+        # side-by-side +peak / -peak
+        peak_row = QHBoxLayout()
+        peak_row.setSpacing(18)
+
+        self._peak_pos_val = QLabel("+0 A")
+        self._peak_pos_val.setFont(QFont("Segoe UI", VALUE_SIZE + 4, QFont.Bold))
+        self._peak_pos_val.setStyleSheet(
+            "color:#00ff78; background:transparent; border:none;"
+        )
+        self._peak_pos_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self._peak_neg_val = QLabel("-0 A")
+        self._peak_neg_val.setFont(QFont("Segoe UI", VALUE_SIZE + 4, QFont.Bold))
+        self._peak_neg_val.setStyleSheet(
+            "color:#ff3030; background:transparent; border:none;"
+        )
+        self._peak_neg_val.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        peak_row.addStretch()
+        peak_row.addWidget(self._peak_pos_val)
+        peak_row.addWidget(self._peak_neg_val)
+        peak_row.addStretch()
+        lo.addLayout(peak_row)
+
+        lo.addSpacing(8)
+
         return panel
 
     def _toggle_gauge(self):
@@ -791,8 +936,8 @@ class Dashboard(QWidget):
             "color:rgba(0,255,160,200); background:transparent; border:none; "
             "letter-spacing:2px;"
         )
-        self.w_high_temp.setValue(d.get("high_temp",       0))
-        self.w_low_temp.setValue( d.get("low_temp",        0))
+        self.w_high_temp.setValue(_temp_calibrated(d.get("high_temp", 0)), decimals=1)
+        self.w_low_temp.setValue(_temp_calibrated(d.get("low_temp", 0)), decimals=1)
         self.w_motor_cur.setValue(d.get("motor_current",   0))
         self.w_speed.setSpeed(      d.get("speed",           0))
         self.w_speed_plain.setSpeed( d.get("speed",           0))
@@ -808,6 +953,25 @@ class Dashboard(QWidget):
         filename = d.get("log_filename", "")
         if filename:
             self._log_file_lbl.setText(filename)
+
+        # ── max/min pack current (60 s rolling window) ────────────────────────
+        self._cur_history.append(pack_cur)
+        pos_peak = max((v for v in self._cur_history if v > 0), default=0.0)
+        neg_peak = min((v for v in self._cur_history if v < 0), default=0.0)
+        pos_dec = 2 if 0 < pos_peak < 1.0 else 0
+        neg_dec = 2 if 0 > neg_peak > -1.0 else 0
+        self._peak_pos_val.setText(f"+{pos_peak:.{pos_dec}f} A")
+        self._peak_neg_val.setText(f"{neg_peak:.{neg_dec}f} A")
+
+        # ── voltage alert check ───────────────────────────────────────────────
+        if self._alert_active:
+            delta = high_cell - low_cell
+            if low_cell < VOLT_CRIT_LOW or high_cell > VOLT_CRIT_HIGH or delta > 0.1:
+                self._set_alert('red')
+            elif low_cell < VOLT_WARN_LOW:
+                self._set_alert('yellow')
+            else:
+                self._set_alert(None)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:

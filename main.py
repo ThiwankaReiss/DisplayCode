@@ -1,6 +1,7 @@
 
 
 import csv
+import math
 import os
 import time
 import threading
@@ -137,6 +138,35 @@ def parse_can_message(message, values):
             values["high_cell_voltage"] = max(cell_voltages.values())
             values["low_cell_voltage"] = min(cell_voltages.values())
 
+    elif arb_id == 0x181:
+
+        regid = data[0]
+
+        if regid == 0x30:          # Motor RPM
+
+            rpm = data[1] | (data[2] << 8)
+
+            if rpm >= 0x8000:
+                rpm -= 0x10000
+
+            values["rpm"] = rpm
+
+            values["speed"] = (
+                rpm *
+                2 * math.pi *
+                0.4064 *
+                3.6 /
+                (60 * 3.5)
+            )
+
+        elif regid == 0x27:        # Motor current
+
+            current = data[1] | (data[2] << 8)
+
+            if current >= 0x8000:
+                current -= 0x10000
+
+            values["motor_current"] = current
 
 # ── Background CAN reader thread ───────────────────────────────────────────────
 def _can_reader_thread():
