@@ -31,3 +31,10 @@ This repository contains backend, debug, and frontend implementations for workin
 2. Use `Is_messages_recived.py` for message-receive debugging.
 3. Use `download_server.py` for lightweight frontend flow.
 4. Use `electrone-display-app/` for the full frontend experience.
+
+## UI Comparison
+
+<p align="center">
+	<img src="img/HeavyReaact.png" alt="Heavy React app" height="260" />
+	<img src="img/Lightweight.png" alt="Lightweight PyQt app" height="260" />
+</p>
