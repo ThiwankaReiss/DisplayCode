@@ -30,7 +30,7 @@ This repository contains backend, debug, and frontend implementations for workin
 1. Run backend from `main.py`.
 2. Use `Is_messages_recived.py` for message-receive debugging.
 3. Use `download_server.py` for lightweight frontend flow.
-4. Use `electrone-display-app/` for the full frontend experience.
+4. Use `electrone-display-app/` for the full frontend experience
 
 ## UI Comparison
 
